@@ -17,8 +17,8 @@ const DEPARTMENTS = [
 ];
 
 const VALID_STATUS_TRANSITIONS = {
-  'Available': ['Busy', 'Break', 'Not Ready', 'Offline'],
-  'Busy': ['Available', 'Wrap', 'Not Ready'],
+  'Available': ['Busy', 'Break', 'Not Ready'],
+  'Busy': ['Available', 'Not Ready'],
   'Wrap': ['Available', 'Not Ready'],
   'Break': ['Available', 'Not Ready'],
   'Not Ready': ['Available', 'Offline'],
