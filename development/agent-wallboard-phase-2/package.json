@@ -1,0 +1,33 @@
+{
+  "name": "agent-wallboard-phase-2",
+  "version": "1.0.0",
+  "description": "Agent Wallboard API with Professional Structure",
+  "main": "server.js",
+  "scripts": {
+    "dev": "nodemon --cwd . server.js",
+    "start": "node server.js",
+    "test": "echo 'Run Postman tests - see README.md'",
+    "docs": "echo 'API Documentation: http://localhost:3001/api/docs'"
+  },
+  "keywords": [
+    "agent",
+    "wallboard",
+    "api",
+    "callcenter"
+  ],
+  "author": "Your Name",
+  "dependencies": {
+    "cors": "^2.8.5",
+    "dotenv": "^16.3.1",
+    "express": "^4.18.2",
+    "helmet": "^7.1.0",
+    "joi": "^17.13.3",
+    "mongoose": "^8.18.1",
+    "morgan": "^1.10.0",
+    "socket.io": "^4.8.1"
+  },
+  "devDependencies": {
+    "@types/node": "^24.5.2",
+    "nodemon": "^3.1.10"
+  }
+}
