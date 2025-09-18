@@ -5,7 +5,7 @@ const { sendError } = require('../utils/apiResponse');
 
 // Validation schemas
 const schemas = {
-  // ✅ Example complete schema
+  // ✅ ให้ code สำเร็จเป็นตัวอย่าง
   agent: Joi.object({
     agentCode: Joi.string()
       .pattern(/^[A-Z]\d{3}$/)
@@ -48,8 +48,18 @@ const schemas = {
       })
   }),
 
-  // 🔄 TODO #4: Completed
+  // 🔄 TODO #4: นักศึกษาทำเอง (15 นาที)
   statusUpdate: Joi.object({
+    // TODO: สร้าง validation สำหรับ status update
+    // Requirements:
+    // 1. status ต้องเป็น valid AGENT_STATUS
+    // 2. reason เป็น optional string ไม่เกิน 200 ตัวอักษร
+    // 3. ใส่ error messages ที่เหมาะสม
+
+    // Hint structure:
+    // status: Joi.string().valid(...).required().messages({...}),
+    // reason: Joi.string().max(200).optional().messages({...})
+
     status: Joi.string()
       .valid(...Object.values(AGENT_STATUS))
       .required()
@@ -57,14 +67,16 @@ const schemas = {
         'any.only': `Status must be one of: ${Object.values(AGENT_STATUS).join(', ')}`,
         'any.required': 'Status is required'
       }),
-    
+
     reason: Joi.string()
       .max(200)
       .optional()
       .messages({
         'string.max': 'Reason cannot exceed 200 characters'
       })
+
   })
+
 };
 
 // Validation middleware functions
@@ -88,8 +100,11 @@ const validateAgent = (req, res, next) => {
   next();
 };
 
-// 🔄 TODO #5: Completed
+// 🔄 TODO #5: นักศึกษาทำเอง (10 นาที)
 const validateStatusUpdate = (req, res, next) => {
+  // TODO: implement ตาม pattern ของ validateAgent
+  // Hint: ใช้ schemas.statusUpdate แทน schemas.agent
+
   const { error, value } = schemas.statusUpdate.validate(req.body, {
     abortEarly: false,
     stripUnknown: true
@@ -101,13 +116,16 @@ const validateStatusUpdate = (req, res, next) => {
       message: detail.message
     }));
 
-    console.log('❌ Status update validation failed:', validationErrors);
-    return sendError(res, 'Validation failed', 400, validationErrors);
+    console.log('⚠️ Status validation failed:', validationErrors);
+    return sendError(res, 'Status validation failed', 400, validationErrors);
   }
 
   req.body = value;
   next();
+
+  //return sendError(res, 'TODO: Implement validateStatusUpdate middleware', 501);
 };
+
 
 module.exports = {
   validateAgent,
