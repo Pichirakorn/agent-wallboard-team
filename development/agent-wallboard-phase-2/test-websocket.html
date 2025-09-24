@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Agent Wallboard WebSocket Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+        }
+
+        .section {
+            margin: 20px 0;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+
+        .log {
+            background: #f5f5f5;
+            padding: 10px;
+            border-radius: 5px;
+            height: 200px;
+            overflow-y: auto;
+            margin: 10px 0;
+        }
+
+        input,
+        button,
+        select {
+            margin: 5px;
+            padding: 8px;
+        }
+
+        .online {
+            color: green;
+        }
+
+        .offline {
+            color: red;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <h1>🌐 Agent Wallboard WebSocket Test</h1>
+
+        <div class="section">
+            <h3>Connection Status</h3>
+            <div id="connectionStatus" class="offline">Disconnected</div>
+            <button onclick="connect()">Connect</button>
+            <button onclick="disconnect()">Disconnect</button>
+        </div>
+
+        <div class="section">
+            <h3>Agent Login</h3>
+            <input type="text" id="agentCode" placeholder="Agent Code (e.g., A101)" value="A101">
+            <input type="text" id="agentName" placeholder="Agent Name" value="Test Agent">
+            <button onclick="agentLogin()">Login as Agent</button>
+            <button onclick="agentLogout()">Logout</button>
+        </div>
+
+        <div class="section">
+            <h3>Update Status</h3>
+            <select id="statusSelect">
+                <option value="Available">Available</option>
+                <option value="Busy">Busy</option>
+                <option value="Wrap">Wrap</option>
+                <option value="Break">Break</option>
+                <option value="Not Ready">Not Ready</option>
+                <option value="Offline">Offline</option>
+            </select>
+            <input type="text" id="statusReason" placeholder="Reason (optional)">
+            <button onclick="updateStatus()">Update Status</button>
+        </div>
+
+        <div class="section">
+            <h3>Send Message (via REST)</h3>
+            <input type="text" id="messageTo" placeholder="To Agent Code (or ALL)" value="ALL">
+            <input type="text" id="messageText" placeholder="Message">
+            <select id="messageType">
+                <option value="message">Message</option>
+                <option value="broadcast">Broadcast</option>
+                <option value="alert">Alert</option>
+            </select>
+            <button onclick="sendMessage()">Send Message</button>
+        </div>
+
+        <div class="section">
+            <h3>Dashboard</h3>
+            <button onclick="joinDashboard()">Join Dashboard</button>
+            <div id="dashboardStats"></div>
+        </div>
+
+        <div class="section">
+            <h3>Event Log</h3>
+            <button onclick="clearLog()">Clear Log</button>
+            <div id="eventLog" class="log"></div>
+        </div>
+    </div>
+
+    <!-- โหลด client จากเซิร์ฟเวอร์ของคุณ -->
+    <script src="http://localhost:3001/socket.io/socket.io.js"></script>
+    <script>
+        // ปรับให้ตรงสภาพแวดล้อมของคุณ
+        const API_BASE = 'http://localhost:3001';
+        const WS_URL = 'http://localhost:3001';
+
+        let socket = null;
+
+        function log(msg) {
+            const box = document.getElementById('eventLog');
+            const t = new Date().toLocaleTimeString();
+            box.insertAdjacentHTML('beforeend', `<div>[${t}] ${msg}</div>`);
+            box.scrollTop = box.scrollHeight;
+        }
+
+        function setConn(status) {
+            const el = document.getElementById('connectionStatus');
+            el.textContent = status;
+            el.className = (status === 'Connected') ? 'online' : 'offline';
+        }
+
+        function connect() {
+            if (socket) socket.disconnect();
+            socket = io(WS_URL, { withCredentials: true });
+
+            socket.on('connect', () => { log('✅ Connected'); setConn('Connected'); });
+            socket.on('disconnect', () => { log('❌ Disconnected'); setConn('Disconnected'); });
+
+            socket.on('login-success', d => log(`🔐 login-success: ${JSON.stringify(d)}`));
+            socket.on('login-error', d => log(`❌ login-error: ${d?.message || d}`));
+            socket.on('agent-online', d => log(`🟢 agent-online: ${d.agentCode} ${d.agentName || ''}`));
+            socket.on('agent-offline', d => log(`🔴 agent-offline: ${d.agentCode} ${d.agentName || ''}`));
+
+            // 🔑 ชื่ออีเวนต์ที่ถูกต้องจากเซิร์ฟเวอร์: 'dashboard-update'
+            socket.on('dashboard-update', (data) => {
+                log(`📊 dashboard-update: ${data.onlineAgents}/${data.totalAgents} online`);
+                updateDashboard(data);
+            });
+        }
+
+        function disconnect() {
+            if (socket) { socket.disconnect(); socket = null; }
+        }
+
+        function agentLogin() {
+            if (!socket) return log('❌ Not connected');
+            const agentCode = document.getElementById('agentCode').value.trim();
+            const agentName = document.getElementById('agentName').value.trim();
+            socket.emit('agent-login', { agentCode, agentName });
+            log(`➡️ emit agent-login: ${agentCode}`);
+        }
+
+        function agentLogout() {
+            if (!socket) return log('❌ Not connected');
+            socket.emit('agent-logout');
+            log('➡️ emit agent-logout');
+        }
+
+        async function updateStatus() {
+            const agentCode = document.getElementById('agentCode').value.trim();
+            const status = document.getElementById('statusSelect').value;
+            const reason = document.getElementById('statusReason').value.trim();
+            try {
+                const res1 = await fetch(`${API_BASE}/api/agents`);
+                const list = await res1.json();
+                const agent = (list.data || []).find(a => a.agentCode === agentCode);
+                if (!agent) return log(`❌ Agent ${agentCode} not found`);
+                const res2 = await fetch(`${API_BASE}/api/agents/${agent._id}/status`, {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ status, reason })
+                });
+                const out = await res2.json();
+                out.success ? log(`✅ Status -> ${status}`) : log(`❌ Status failed: ${out.message}`);
+            } catch (e) { log(`❌ Error: ${e.message}`); }
+        }
+
+        async function sendMessage() {
+            const from = document.getElementById('agentName').value.trim() || 'Test Supervisor';
+            const to = document.getElementById('messageTo').value.trim();
+            const message = document.getElementById('messageText').value.trim();
+            const type = document.getElementById('messageType').value;
+            try {
+                const res = await fetch(`${API_BASE}/api/messages`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ from, to, message, type })
+                });
+                const out = await res.json();
+                out.success ? (log('✅ Message sent'), document.getElementById('messageText').value = '')
+                    : log(`❌ Message failed: ${out.message}`);
+            } catch (e) { log(`❌ Error: ${e.message}`); }
+        }
+
+        function joinDashboard() {
+            if (!socket) return log('❌ Not connected');
+            socket.emit('join-dashboard');
+            log('➡️ emit join-dashboard');
+        }
+
+        function updateDashboard(d) {
+            // เซิร์ฟเวอร์ส่ง key ชื่อ statusCounts
+            document.getElementById('dashboardStats').innerHTML = `
+        <div>Total Agents: ${d.totalAgents}</div>
+        <div>Online Agents: <span class="online">${d.onlineAgents}</span></div>
+        <div>Offline Agents: <span class="offline">${d.offlineAgents}</span></div>
+        <div>Status Counts: <pre>${JSON.stringify(d.statusCounts, null, 2)}</pre></div>
+        <div>Last Updated: ${new Date(d.timestamp).toLocaleTimeString()}</div>
+      `;
+        }
+
+        function clearLog() { document.getElementById('eventLog').innerHTML = ''; }
+
+        window.onload = () => {
+            log('🌐 WebSocket Test Client loaded');
+            log(`API_BASE=${API_BASE} | WS_URL=${WS_URL}`);
+            log('Set FRONTEND_URL=http://127.0.0.1:5500 in .env then restart server if CORS blocks');
+        };
+    </script>
+</body>
+
+</html>
